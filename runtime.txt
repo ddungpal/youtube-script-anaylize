@@ -1,4 +1,4 @@
-python-3.11
+python-3.11.14
 youtube-transcript-api==1.2.4
 openai==2.24.0
 yt-dlp==2026.2.21
