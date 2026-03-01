@@ -1,1 +1,6 @@
 python-3.11
+youtube-transcript-api==1.2.4
+openai==2.24.0
+yt-dlp==2026.2.21
+rich==14.3.3
+python-dotenv==1.2.1
