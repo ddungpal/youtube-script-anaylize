@@ -1,0 +1,21 @@
+.env
+venv/
+database/saenggak.db
+database/*.db
+
+# outputs - 디렉터리 구조(gitkeep)는 커밋, 생성 파일은 제외
+outputs/**
+!outputs/
+!outputs/**/
+!outputs/**/.gitkeep
+
+# data - 내보내기 파일만 제외
+data/export_*.csv
+data/export_*.json
+data/videos/
+
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.db-journal

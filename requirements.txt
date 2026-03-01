@@ -1,0 +1,10 @@
+youtube-transcript-api
+openai
+yt-dlp
+rich
+python-dotenv
+pandas
+matplotlib
+rapidfuzz
+fastapi
+uvicorn[standard]

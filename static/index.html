@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>생각구독 콘텐츠 분석 에이전시</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .tab-btn { transition: all .15s; }
+  .tab-btn.active { background:#1d4ed8; color:#fff; }
+  .score-bar { height:6px; border-radius:3px; background:#e5e7eb; }
+  .score-fill { height:100%; border-radius:3px; background:#3b82f6; transition:width .4s; }
+  .score-fill.high { background:#22c55e; }
+  .score-fill.mid  { background:#f59e0b; }
+  .score-fill.low  { background:#ef4444; }
+  pre { white-space:pre-wrap; word-break:break-word; }
+  .spinner { border:3px solid #e5e7eb; border-top-color:#3b82f6; border-radius:50%;
+             width:20px; height:20px; animation:spin .7s linear infinite; display:inline-block; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+<!-- 헤더 -->
+<header class="bg-white border-b shadow-sm sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold text-blue-700">🧠 생각구독 분석 에이전시</h1>
+      <p class="text-xs text-gray-400">유튜브 → 유료 구독 전환 최적화</p>
+    </div>
+    <div id="db-badge" class="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-200">
+      DB: 로딩 중...
+    </div>
+  </div>
+  <!-- 탭 -->
+  <nav class="max-w-7xl mx-auto px-4 flex gap-1 pb-2 overflow-x-auto">
+    <button onclick="showTab('dashboard')" class="tab-btn active px-4 py-1.5 rounded text-sm font-medium" data-tab="dashboard">📊 대시보드</button>
+    <button onclick="showTab('analyze')"   class="tab-btn px-4 py-1.5 rounded text-sm font-medium bg-gray-100" data-tab="analyze">📹 신규 분석</button>
+    <button onclick="showTab('search')"    class="tab-btn px-4 py-1.5 rounded text-sm font-medium bg-gray-100" data-tab="search">🔍 영상 검색</button>
+    <button onclick="showTab('patterns')"  class="tab-btn px-4 py-1.5 rounded text-sm font-medium bg-gray-100" data-tab="patterns">💡 패턴 라이브러리</button>
+    <button onclick="showTab('trends')"    class="tab-btn px-4 py-1.5 rounded text-sm font-medium bg-gray-100" data-tab="trends">📈 트렌드</button>
+    <button onclick="showTab('insight')"   class="tab-btn px-4 py-1.5 rounded text-sm font-medium bg-gray-100" data-tab="insight">🔮 심화 인사이트</button>
+    <button onclick="showTab('settings')"  class="tab-btn px-4 py-1.5 rounded text-sm font-medium bg-gray-100" data-tab="settings">⚙️ 설정</button>
+  </nav>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     탭 1: 대시보드
+════════════════════════════════════════════════════════════════════════════ -->
+<section id="tab-dashboard" class="tab-content">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="stat-cards">
+    <div class="bg-white rounded-xl p-4 shadow-sm border">
+      <p class="text-xs text-gray-400">총 분석 영상</p>
+      <p class="text-3xl font-bold text-blue-600" id="stat-total">—</p>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border">
+      <p class="text-xs text-gray-400">평균 전환률</p>
+      <p class="text-3xl font-bold text-green-600" id="stat-avg">—</p>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border">
+      <p class="text-xs text-gray-400">최고 전환률</p>
+      <p class="text-3xl font-bold text-emerald-600" id="stat-max">—</p>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border">
+      <p class="text-xs text-gray-400">패턴 라이브러리</p>
+      <p class="text-3xl font-bold text-purple-600" id="stat-patterns">—</p>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+      <h3 class="font-semibold text-sm mb-3 text-yellow-700">🏆 전환률 TOP 5</h3>
+      <div id="top5-list"></div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+      <h3 class="font-semibold text-sm mb-3 text-red-600">📉 전환률 BOTTOM 5</h3>
+      <div id="bottom5-list"></div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border p-4">
+    <h3 class="font-semibold text-sm mb-3 text-gray-600">🕐 최근 분석 세션</h3>
+    <div id="sessions-list" class="text-sm text-gray-500">데이터를 불러오는 중...</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     탭 2: 신규 분석
+════════════════════════════════════════════════════════════════════════════ -->
+<section id="tab-analyze" class="tab-content hidden">
+  <div class="bg-white rounded-xl shadow-sm border p-6 mb-6">
+    <h2 class="font-bold text-lg mb-1">📹 신규 분석</h2>
+    <p class="text-sm text-gray-400 mb-5">유튜브 링크와 구독전환률을 입력하세요. (최대 10개)</p>
+
+    <div id="url-inputs" class="space-y-3 mb-4">
+      <!-- 동적으로 생성 -->
+    </div>
+    <button onclick="addUrlInput()" class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 mb-5">
+      <span class="text-lg leading-none">+</span> 영상 추가
+    </button>
+
+    <button onclick="startAnalysis()"
+      class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium text-sm transition">
+      분석 시작
+    </button>
+  </div>
+
+  <!-- 진행 상황 -->
+  <div id="analysis-progress" class="hidden bg-white rounded-xl shadow-sm border p-6 mb-6">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="spinner"></div>
+      <span class="font-semibold text-sm" id="progress-title">분석 진행 중...</span>
+    </div>
+    <div id="progress-log" class="bg-gray-50 rounded-lg p-3 text-xs font-mono space-y-0.5 max-h-40 overflow-y-auto"></div>
+  </div>
+
+  <!-- 분석 결과 -->
+  <div id="analysis-result" class="hidden"></div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     탭 3: 영상 검색
+════════════════════════════════════════════════════════════════════════════ -->
+<section id="tab-search" class="tab-content hidden">
+  <div class="bg-white rounded-xl shadow-sm border p-5 mb-5">
+    <div class="flex gap-2 flex-wrap mb-4">
+      <button onclick="setSearchMode('all')"       class="search-mode-btn active px-3 py-1.5 rounded text-sm border">전체 목록</button>
+      <button onclick="setSearchMode('keyword')"   class="search-mode-btn px-3 py-1.5 rounded text-sm border bg-gray-50">키워드</button>
+      <button onclick="setSearchMode('rate_range')" class="search-mode-btn px-3 py-1.5 rounded text-sm border bg-gray-50">전환률 범위</button>
+      <button onclick="setSearchMode('scores')"    class="search-mode-btn px-3 py-1.5 rounded text-sm border bg-gray-50">점수 조건</button>
+    </div>
+
+    <div id="search-keyword" class="search-opt hidden">
+      <input id="keyword-input" type="text" placeholder="키워드 입력 (제목/스크립트/태그)"
+        class="border rounded-lg px-3 py-2 text-sm w-full max-w-sm" />
+    </div>
+    <div id="search-rate_range" class="search-opt hidden flex gap-3 items-center">
+      <input id="min-rate" type="number" placeholder="최소 %" min="0" max="100" step="0.1"
+        class="border rounded-lg px-3 py-2 text-sm w-28" />
+      <span class="text-gray-400">~</span>
+      <input id="max-rate" type="number" placeholder="최대 %" min="0" max="100" step="0.1"
+        class="border rounded-lg px-3 py-2 text-sm w-28" />
+    </div>
+    <div id="search-scores" class="search-opt hidden grid grid-cols-2 md:grid-cols-4 gap-3">
+      <label class="text-xs text-gray-500">후킹 최솟값 <input type="number" id="sc-hook" min="1" max="10" placeholder="—" class="border rounded px-2 py-1 w-full mt-1 text-sm" /></label>
+      <label class="text-xs text-gray-500">스토리 최솟값 <input type="number" id="sc-story" min="1" max="10" placeholder="—" class="border rounded px-2 py-1 w-full mt-1 text-sm" /></label>
+      <label class="text-xs text-gray-500">핵심가치 최솟값 <input type="number" id="sc-value" min="1" max="10" placeholder="—" class="border rounded px-2 py-1 w-full mt-1 text-sm" /></label>
+      <label class="text-xs text-gray-500">CTA 최솟값 <input type="number" id="sc-cta" min="1" max="10" placeholder="—" class="border rounded px-2 py-1 w-full mt-1 text-sm" /></label>
+      <label class="text-xs text-gray-500">감정 최솟값 <input type="number" id="sc-emotion" min="1" max="10" placeholder="—" class="border rounded px-2 py-1 w-full mt-1 text-sm" /></label>
+      <label class="text-xs text-gray-500">주제적합 최솟값 <input type="number" id="sc-topic" min="1" max="10" placeholder="—" class="border rounded px-2 py-1 w-full mt-1 text-sm" /></label>
+      <label class="text-xs text-gray-500">차별화 최솟값 <input type="number" id="sc-diff" min="1" max="10" placeholder="—" class="border rounded px-2 py-1 w-full mt-1 text-sm" /></label>
+      <label class="text-xs text-gray-500">종합 최솟값 <input type="number" id="sc-overall" min="1" max="10" placeholder="—" class="border rounded px-2 py-1 w-full mt-1 text-sm" /></label>
+    </div>
+
+    <button onclick="runSearch()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+      검색
+    </button>
+  </div>
+
+  <div id="search-results" class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <p class="text-sm text-gray-400 p-4">검색 버튼을 눌러 결과를 확인하세요.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     탭 4: 패턴 라이브러리
+════════════════════════════════════════════════════════════════════════════ -->
+<section id="tab-patterns" class="tab-content hidden">
+  <div class="grid md:grid-cols-2 gap-6">
+    <div>
+      <h3 class="font-bold text-sm text-green-700 mb-3">✅ 성공 패턴</h3>
+      <div id="success-patterns" class="space-y-2">
+        <p class="text-sm text-gray-400">로딩 중...</p>
+      </div>
+    </div>
+    <div>
+      <h3 class="font-bold text-sm text-red-600 mb-3">❌ 실패 패턴</h3>
+      <div id="failure-patterns" class="space-y-2">
+        <p class="text-sm text-gray-400">로딩 중...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     탭 5: 트렌드 분석
+════════════════════════════════════════════════════════════════════════════ -->
+<section id="tab-trends" class="tab-content hidden">
+  <div class="bg-white rounded-xl shadow-sm border p-6 mb-5">
+    <h2 class="font-bold mb-1">📈 트렌드 분석</h2>
+    <p class="text-sm text-gray-400 mb-4">최소 8개 영상이 필요합니다. 분석에 1~2분 소요됩니다.</p>
+    <button onclick="runTrends()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+      트렌드 분석 시작
+    </button>
+  </div>
+  <div id="trends-progress" class="hidden bg-white rounded-xl shadow-sm border p-5 mb-5">
+    <div class="flex items-center gap-3"><div class="spinner"></div><span class="text-sm">분석 중...</span></div>
+  </div>
+  <div id="trends-result" class="hidden space-y-5">
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+      <h3 class="font-semibold mb-3 text-sm text-blue-700">전환률 추이 차트</h3>
+      <canvas id="trend-chart" height="100"></canvas>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+      <h3 class="font-semibold mb-3 text-sm">트렌드 인사이트</h3>
+      <pre id="trend-text" class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap"></pre>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+      <h3 class="font-semibold mb-3 text-sm">패턴 상관관계</h3>
+      <pre id="corr-text" class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap"></pre>
+    </div>
+  </div>
+
+  <!-- 키워드-전환율 상관관계 -->
+  <div class="bg-white rounded-xl shadow-sm border p-6 mt-5">
+    <h2 class="font-bold mb-1">🔤 단어 사용 패턴 분석</h2>
+    <p class="text-sm text-gray-400 mb-4">특정 단어를 많이 쓸 때 전환율이 높아지는지 데이터로 확인합니다. 최소 5개 영상이 필요합니다.</p>
+    <button onclick="runKeywordCorrelation()" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+      단어-전환율 상관관계 분석
+    </button>
+  </div>
+  <div id="kw-corr-progress" class="hidden bg-white rounded-xl shadow-sm border p-5 mt-3">
+    <div class="flex items-center gap-3"><div class="spinner"></div><span class="text-sm">분석 중...</span></div>
+  </div>
+  <div id="kw-corr-result" class="hidden bg-white rounded-xl shadow-sm border p-5 mt-3">
+    <h3 class="font-semibold mb-3 text-sm text-green-700">단어 사용 패턴 분석 결과</h3>
+    <pre id="kw-corr-text" class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap"></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     탭 6: 심화 인사이트
+════════════════════════════════════════════════════════════════════════════ -->
+<section id="tab-insight" class="tab-content hidden">
+  <div class="bg-white rounded-xl shadow-sm border p-6 mb-5">
+    <h2 class="font-bold mb-1">🔮 심화 인사이트</h2>
+    <p class="text-sm text-gray-400 mb-4">최소 10개 영상이 필요합니다. 분석에 2~3분 소요됩니다.</p>
+    <button onclick="runInsight()" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+      심화 인사이트 생성
+    </button>
+  </div>
+  <div id="insight-progress" class="hidden bg-white rounded-xl shadow-sm border p-5 mb-5">
+    <div class="flex items-center gap-3"><div class="spinner"></div><span class="text-sm">분석 중...</span></div>
+  </div>
+  <div id="insight-result" class="hidden bg-white rounded-xl shadow-sm border p-6">
+    <div class="flex justify-between items-start mb-3">
+      <h3 class="font-semibold text-sm">심화 인사이트 리포트</h3>
+      <a id="insight-report-link" href="#" class="text-xs text-blue-600 hover:underline" target="_blank">리포트 파일 다운로드</a>
+    </div>
+    <pre id="insight-text" class="text-sm text-gray-700 leading-relaxed"></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     탭 7: 설정
+════════════════════════════════════════════════════════════════════════════ -->
+<section id="tab-settings" class="tab-content hidden">
+  <div class="grid md:grid-cols-2 gap-6">
+    <!-- 전환률 수정 -->
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+      <h3 class="font-semibold mb-4">📝 전환률 수정</h3>
+      <input id="edit-vid-id" type="text" placeholder="video_id 또는 유튜브 URL"
+        class="border rounded-lg px-3 py-2 text-sm w-full mb-2" />
+      <input id="edit-rate" type="number" step="0.01" placeholder="새 전환률 (%)"
+        class="border rounded-lg px-3 py-2 text-sm w-full mb-3" />
+      <button onclick="updateRate()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition w-full">
+        업데이트
+      </button>
+      <p id="edit-msg" class="text-xs mt-2 text-gray-500"></p>
+    </div>
+
+    <!-- 영상 삭제 -->
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+      <h3 class="font-semibold mb-4">🗑️ 영상 삭제</h3>
+      <input id="del-vid-id" type="text" placeholder="video_id 또는 유튜브 URL"
+        class="border rounded-lg px-3 py-2 text-sm w-full mb-3" />
+      <button onclick="deleteVideo()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition w-full">
+        삭제
+      </button>
+      <p id="del-msg" class="text-xs mt-2 text-gray-500"></p>
+    </div>
+
+    <!-- 내보내기 -->
+    <div class="bg-white rounded-xl shadow-sm border p-5 md:col-span-2">
+      <h3 class="font-semibold mb-4">📤 데이터 내보내기</h3>
+      <div class="flex flex-wrap gap-3">
+        <a href="/api/export/csv" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+          CSV 다운로드
+        </a>
+        <a href="/api/export/json" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+          JSON 다운로드
+        </a>
+        <a href="/api/export/markdown" class="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+          마크다운 아카이브
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     영상 상세 모달
+════════════════════════════════════════════════════════════════════════════ -->
+<div id="video-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div class="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-start rounded-t-2xl">
+      <div>
+        <h2 id="modal-title" class="font-bold text-lg"></h2>
+        <a id="modal-url" href="#" target="_blank" class="text-xs text-blue-500 hover:underline"></a>
+      </div>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+    <div class="px-6 py-5" id="modal-body">
+      <div class="flex items-center gap-3"><div class="spinner"></div><span class="text-sm">로딩 중...</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     JavaScript
+════════════════════════════════════════════════════════════════════════════ -->
+<script>
+/* ─── 탭 관리 ─────────────────────────────────────────────────────────────── */
+let currentTab = 'dashboard';
+
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+    btn.classList.add('bg-gray-100');
+  });
+  document.getElementById(`tab-${name}`).classList.remove('hidden');
+  const btn = document.querySelector(`[data-tab="${name}"]`);
+  btn.classList.add('active');
+  btn.classList.remove('bg-gray-100');
+  currentTab = name;
+
+  if (name === 'patterns') loadPatterns();
+  if (name === 'search' && document.getElementById('search-results').children.length <= 1) runSearch();
+}
+
+/* ─── 대시보드 ──────────────────────────────────────────────────────────────── */
+async function loadDashboard() {
+  try {
+    const res = await fetch('/api/stats');
+    const data = await res.json();
+    const s = data.summary;
+
+    document.getElementById('stat-total').textContent = s.total_videos ?? '0';
+    document.getElementById('stat-avg').textContent = s.avg_rate != null ? s.avg_rate + '%' : '—';
+    document.getElementById('stat-max').textContent = s.max_rate != null ? s.max_rate + '%' : '—';
+    document.getElementById('stat-patterns').textContent = s.total_patterns ?? '0';
+    document.getElementById('db-badge').textContent = `DB: ${s.total_videos ?? 0}개 영상`;
+
+    renderVideoList('top5-list', data.top5, 'top');
+    renderVideoList('bottom5-list', data.bottom5, 'bottom');
+    renderSessions(data.sessions);
+  } catch(e) {
+    document.getElementById('db-badge').textContent = 'DB: 연결 오류';
+  }
+}
+
+function renderVideoList(containerId, videos, type) {
+  const el = document.getElementById(containerId);
+  if (!videos || videos.length === 0) {
+    el.innerHTML = '<p class="text-xs text-gray-400">데이터 없음</p>';
+    return;
+  }
+  el.innerHTML = videos.map((v, i) => `
+    <div class="flex items-center justify-between py-2 border-b last:border-0 cursor-pointer hover:bg-gray-50 rounded px-1"
+         onclick="openModal('${v.video_id}')">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-xs text-gray-400 w-5 shrink-0">${i+1}</span>
+        <span class="text-sm truncate">${esc(v.title)}</span>
+      </div>
+      <div class="flex items-center gap-2 shrink-0 ml-2">
+        <span class="text-xs font-medium ${type==='top'?'text-green-600':'text-red-500'}">${v.conversion_rate}%</span>
+        ${v.overall_score != null ? `<span class="text-xs bg-gray-100 px-1.5 py-0.5 rounded">${v.overall_score}/10</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderSessions(sessions) {
+  const el = document.getElementById('sessions-list');
+  if (!sessions || sessions.length === 0) {
+    el.innerHTML = '<p class="text-xs text-gray-400">세션 없음</p>';
+    return;
+  }
+  el.innerHTML = sessions.map(s => `
+    <div class="flex items-center gap-3 py-1.5 border-b last:border-0 text-xs">
+      <span class="text-gray-400">${(s.created_at||'').slice(0,16)}</span>
+      <span class="text-gray-600">${(s.video_ids||[]).length}개 영상</span>
+      ${s.report_path ? `<a href="${s.report_path}" target="_blank" class="text-blue-500 hover:underline">리포트</a>` : ''}
+    </div>
+  `).join('');
+}
+
+/* ─── 신규 분석 ──────────────────────────────────────────────────────────────── */
+let urlInputCount = 0;
+
+function addUrlInput() {
+  if (urlInputCount >= 10) return alert('최대 10개까지 입력 가능합니다.');
+  urlInputCount++;
+  const div = document.createElement('div');
+  div.className = 'flex gap-2 items-start';
+  div.id = `url-row-${urlInputCount}`;
+  div.innerHTML = `
+    <div class="flex-1 space-y-1">
+      <input type="url" placeholder="유튜브 링크 (https://...)"
+        class="border rounded-lg px-3 py-2 text-sm w-full url-field" />
+      <div class="flex gap-2 items-center">
+        <input type="number" step="0.01" min="0" max="100" placeholder="전환률 (%)"
+          class="border rounded-lg px-3 py-2 text-sm w-32 rate-field" />
+        <label class="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+          <input type="checkbox" class="reanalyze-field" /> 재분석
+        </label>
+      </div>
+    </div>
+    <button onclick="removeUrlInput(${urlInputCount})" class="text-gray-300 hover:text-red-400 text-xl leading-none mt-2">×</button>
+  `;
+  document.getElementById('url-inputs').appendChild(div);
+}
+
+function removeUrlInput(id) {
+  const el = document.getElementById(`url-row-${id}`);
+  if (el) el.remove();
+}
+
+let pollTimer = null;
+
+async function startAnalysis() {
+  const rows = document.querySelectorAll('#url-inputs > div');
+  if (rows.length === 0) return alert('영상을 1개 이상 추가하세요.');
+
+  const inputs = [];
+  for (const row of rows) {
+    const url = row.querySelector('.url-field').value.trim();
+    const rate = parseFloat(row.querySelector('.rate-field').value);
+    const reanalyze = row.querySelector('.reanalyze-field').checked;
+    if (!url) continue;
+    if (isNaN(rate)) { alert('전환률을 숫자로 입력하세요.'); return; }
+    inputs.push({ url, conversion_rate: rate, reanalyze });
+  }
+  if (inputs.length === 0) return alert('유효한 영상 입력이 없습니다.');
+
+  document.getElementById('analysis-progress').classList.remove('hidden');
+  document.getElementById('analysis-result').classList.add('hidden');
+  document.getElementById('progress-log').innerHTML = '';
+  document.getElementById('progress-title').textContent = '분석 진행 중...';
+
+  const res = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inputs }),
+  });
+  const { task_id } = await res.json();
+  pollTask(task_id, 'analysis');
+}
+
+function pollTask(taskId, type) {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    const res = await fetch(`/api/tasks/${taskId}`);
+    const task = await res.json();
+
+    if (type === 'analysis') {
+      const log = document.getElementById('progress-log');
+      log.innerHTML = (task.progress || []).map(p => `<div class="text-gray-600">${esc(p)}</div>`).join('');
+      log.scrollTop = log.scrollHeight;
+    }
+
+    if (task.status === 'completed') {
+      clearInterval(pollTimer);
+      if (type === 'analysis') renderAnalysisResult(task.result);
+      if (type === 'trends') renderTrendsResult(task.result);
+      if (type === 'insight') renderInsightResult(task.result);
+      if (type === 'kw-corr') renderKwCorrResult(task.result);
+    }
+    if (task.status === 'error') {
+      clearInterval(pollTimer);
+      alert('오류: ' + task.error);
+      if (type === 'analysis') {
+        document.getElementById('progress-title').textContent = '오류 발생';
+      }
+      if (type === 'trends') {
+        document.getElementById('trends-progress').classList.add('hidden');
+      }
+      if (type === 'insight') {
+        document.getElementById('insight-progress').classList.add('hidden');
+      }
+      if (type === 'kw-corr') {
+        document.getElementById('kw-corr-progress').classList.add('hidden');
+      }
+    }
+  }, 2000);
+}
+
+function renderAnalysisResult(result) {
+  document.getElementById('analysis-progress').classList.add('hidden');
+  const el = document.getElementById('analysis-result');
+  el.classList.remove('hidden');
+
+  const scoreRow = (label, score) => {
+    const pct = (score / 10 * 100).toFixed(0);
+    const cls = score >= 7 ? 'high' : score >= 5 ? 'mid' : 'low';
+    return `
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-500 w-16 shrink-0">${label}</span>
+        <div class="score-bar flex-1"><div class="score-fill ${cls}" style="width:${pct}%"></div></div>
+        <span class="text-xs font-medium w-8 text-right">${score}</span>
+      </div>`;
+  };
+
+  const cards = result.analyses.map(a => `
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+      <div class="flex justify-between items-start mb-3">
+        <h3 class="font-semibold text-sm truncate flex-1 mr-2">${esc(a.title)}</h3>
+        <span class="shrink-0 text-sm font-bold ${a.overall_score>=7?'text-green-600':a.overall_score>=5?'text-yellow-500':'text-red-500'}">
+          ${a.overall_score}/10
+        </span>
+      </div>
+      <p class="text-xs text-gray-400 mb-3">전환률: ${a.conversion_rate}%</p>
+      <div class="space-y-1.5 mb-4">
+        ${scoreRow('후킹', a.hook_score)}
+        ${scoreRow('스토리', a.story_score)}
+        ${scoreRow('핵심가치', a.value_score)}
+        ${scoreRow('CTA', a.cta_score)}
+        ${scoreRow('감정', a.emotion_score)}
+        ${scoreRow('주제적합', a.topic_score)}
+        ${scoreRow('차별화', a.diff_score)}
+      </div>
+      <div class="flex gap-4 text-xs">
+        <div>
+          <p class="text-green-600 font-medium mb-1">강점</p>
+          ${a.strengths.map(s=>`<p class="text-gray-600">• ${esc(s)}</p>`).join('')}
+        </div>
+        <div>
+          <p class="text-red-500 font-medium mb-1">약점</p>
+          ${a.weaknesses.map(w=>`<p class="text-gray-600">• ${esc(w)}</p>`).join('')}
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  el.innerHTML = `
+    <div class="grid md:grid-cols-2 gap-5 mb-5">${cards}</div>
+    ${result.failures && result.failures.length > 0 ? `
+      <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-5 text-sm">
+        <p class="font-medium text-yellow-700 mb-1">추출 실패 영상 (${result.failures.length}개)</p>
+        ${result.failures.map(f=>`<p class="text-yellow-600 text-xs">• ${esc(f.url)} — ${esc(f.reason)}</p>`).join('')}
+      </div>` : ''}
+    <div class="bg-white rounded-xl shadow-sm border p-5 mb-5">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-semibold text-sm">💡 전략 리포트</h3>
+        <a href="${result.report_path}" target="_blank" class="text-xs text-blue-500 hover:underline">파일 열기</a>
+      </div>
+      <pre class="text-sm text-gray-700 leading-relaxed">${esc(result.strategy)}</pre>
+    </div>
+  `;
+
+  loadDashboard();
+}
+
+/* ─── 검색 ──────────────────────────────────────────────────────────────────── */
+let currentSearchMode = 'all';
+
+function setSearchMode(mode) {
+  currentSearchMode = mode;
+  document.querySelectorAll('.search-mode-btn').forEach(btn => {
+    btn.classList.remove('active', 'bg-blue-600', 'text-white');
+    btn.classList.add('bg-gray-50');
+  });
+  event.target.classList.add('active', 'bg-blue-600', 'text-white');
+  event.target.classList.remove('bg-gray-50');
+
+  document.querySelectorAll('.search-opt').forEach(el => el.classList.add('hidden'));
+  const opt = document.getElementById(`search-${mode}`);
+  if (opt) opt.classList.remove('hidden');
+}
+
+async function runSearch() {
+  const mode = currentSearchMode;
+  let qs = `mode=${mode}`;
+  if (mode === 'keyword') qs += `&keyword=${encodeURIComponent(document.getElementById('keyword-input')?.value || '')}`;
+  if (mode === 'rate_range') {
+    qs += `&min_rate=${document.getElementById('min-rate')?.value || 0}`;
+    qs += `&max_rate=${document.getElementById('max-rate')?.value || 100}`;
+  }
+  if (mode === 'scores') {
+    const fields = [
+      ['hook_score','sc-hook'],['story_score','sc-story'],['value_score','sc-value'],
+      ['cta_score','sc-cta'],['emotion_score','sc-emotion'],['topic_score','sc-topic'],
+      ['diff_score','sc-diff'],['overall_score','sc-overall'],
+    ];
+    fields.forEach(([param, id]) => {
+      const v = document.getElementById(id)?.value;
+      if (v) qs += `&${param}=${v}`;
+    });
+  }
+
+  const res = await fetch(`/api/search?${qs}`);
+  const videos = await res.json();
+  renderSearchResults(videos);
+}
+
+function renderSearchResults(videos) {
+  const el = document.getElementById('search-results');
+  if (!videos || videos.length === 0) {
+    el.innerHTML = '<p class="text-sm text-gray-400 p-4">검색 결과가 없습니다.</p>';
+    return;
+  }
+  el.innerHTML = `
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-xs text-gray-500">
+        <tr>
+          <th class="text-left px-4 py-3">제목</th>
+          <th class="text-center px-3 py-3 w-20">전환률</th>
+          <th class="text-center px-3 py-3 w-20">종합점수</th>
+          <th class="text-center px-3 py-3 w-24">등록일</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${videos.map(v => `
+          <tr class="border-t hover:bg-gray-50 cursor-pointer" onclick="openModal('${v.video_id}')">
+            <td class="px-4 py-3 truncate max-w-xs">${esc(v.title)}</td>
+            <td class="text-center px-3 py-3 font-medium text-blue-600">${v.conversion_rate}%</td>
+            <td class="text-center px-3 py-3">${v.overall_score != null ? v.overall_score+'/10' : '—'}</td>
+            <td class="text-center px-3 py-3 text-gray-400">${v.created_at || ''}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <p class="text-xs text-gray-400 px-4 py-2 border-t">${videos.length}건</p>
+  `;
+}
+
+/* ─── 패턴 라이브러리 ──────────────────────────────────────────────────────── */
+async function loadPatterns() {
+  const res = await fetch('/api/patterns');
+  const data = await res.json();
+  renderPatterns('success-patterns', data.success, 'green');
+  renderPatterns('failure-patterns', data.failure, 'red');
+}
+
+function renderPatterns(containerId, patterns, color) {
+  const el = document.getElementById(containerId);
+  if (!patterns || patterns.length === 0) {
+    el.innerHTML = '<p class="text-xs text-gray-400">패턴 없음</p>';
+    return;
+  }
+  el.innerHTML = patterns.map(p => `
+    <div class="bg-white border rounded-lg p-3 text-sm hover:shadow-sm transition">
+      <div class="flex justify-between items-start mb-1">
+        <span class="text-xs px-1.5 py-0.5 rounded bg-${color}-50 text-${color}-700 font-medium">${esc(p.category || '')}</span>
+        <span class="text-xs text-gray-400">발견 ${p.frequency}회</span>
+      </div>
+      <p class="text-gray-700">${esc(p.description || '')}</p>
+      ${p.avg_conversion != null ? `<p class="text-xs text-gray-400 mt-1">평균 전환률 ${p.avg_conversion.toFixed(1)}%</p>` : ''}
+    </div>
+  `).join('');
+}
+
+/* ─── 단어-전환율 상관관계 ─────────────────────────────────────────────────── */
+async function runKeywordCorrelation() {
+  document.getElementById('kw-corr-progress').classList.remove('hidden');
+  document.getElementById('kw-corr-result').classList.add('hidden');
+
+  const res = await fetch('/api/keyword-correlation', { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json();
+    alert(err.detail || '오류 발생');
+    document.getElementById('kw-corr-progress').classList.add('hidden');
+    return;
+  }
+  const { task_id } = await res.json();
+  pollTask(task_id, 'kw-corr');
+}
+
+function renderKwCorrResult(result) {
+  document.getElementById('kw-corr-progress').classList.add('hidden');
+  document.getElementById('kw-corr-result').classList.remove('hidden');
+  document.getElementById('kw-corr-text').textContent = result.report || '';
+}
+
+/* ─── 트렌드 분석 ──────────────────────────────────────────────────────────── */
+let trendChartInstance = null;
+
+async function runTrends() {
+  document.getElementById('trends-progress').classList.remove('hidden');
+  document.getElementById('trends-result').classList.add('hidden');
+
+  const res = await fetch('/api/trends', { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json();
+    alert(err.detail || '오류 발생');
+    document.getElementById('trends-progress').classList.add('hidden');
+    return;
+  }
+  const { task_id } = await res.json();
+  pollTask(task_id, 'trends');
+}
+
+function renderTrendsResult(result) {
+  document.getElementById('trends-progress').classList.add('hidden');
+  document.getElementById('trends-result').classList.remove('hidden');
+  document.getElementById('trend-text').textContent = result.trend_text || '';
+  document.getElementById('corr-text').textContent = result.correlation_text || '';
+
+  if (trendChartInstance) trendChartInstance.destroy();
+  const ctx = document.getElementById('trend-chart').getContext('2d');
+  trendChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: result.labels || [],
+      datasets: [{
+        label: '전환률 (%)',
+        data: result.rates || [],
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        tension: 0.3,
+        fill: true,
+        pointRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: false } },
+    },
+  });
+}
+
+/* ─── 심화 인사이트 ─────────────────────────────────────────────────────────── */
+async function runInsight() {
+  document.getElementById('insight-progress').classList.remove('hidden');
+  document.getElementById('insight-result').classList.add('hidden');
+
+  const res = await fetch('/api/insight', { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json();
+    alert(err.detail || '오류 발생');
+    document.getElementById('insight-progress').classList.add('hidden');
+    return;
+  }
+  const { task_id } = await res.json();
+  pollTask(task_id, 'insight');
+}
+
+function renderInsightResult(result) {
+  document.getElementById('insight-progress').classList.add('hidden');
+  document.getElementById('insight-result').classList.remove('hidden');
+  document.getElementById('insight-text').textContent = result.text || '';
+  const link = document.getElementById('insight-report-link');
+  link.href = result.report_path || '#';
+}
+
+/* ─── 영상 상세 모달 ─────────────────────────────────────────────────────────── */
+async function openModal(videoId) {
+  document.getElementById('video-modal').classList.remove('hidden');
+  document.getElementById('modal-title').textContent = '로딩 중...';
+  document.getElementById('modal-url').textContent = '';
+  document.getElementById('modal-body').innerHTML = '<div class="flex items-center gap-3"><div class="spinner"></div><span class="text-sm">로딩 중...</span></div>';
+
+  const res = await fetch(`/api/videos/${videoId}`);
+  const v = await res.json();
+
+  document.getElementById('modal-title').textContent = v.title;
+  document.getElementById('modal-url').textContent = v.url;
+  document.getElementById('modal-url').href = v.url;
+
+  const a = v.analysis;
+  const scoreRow = (label, score) => {
+    if (score == null) return '';
+    const pct = (score / 10 * 100).toFixed(0);
+    const cls = score >= 7 ? 'high' : score >= 5 ? 'mid' : 'low';
+    return `<div class="flex items-center gap-2">
+      <span class="text-xs text-gray-500 w-20 shrink-0">${label}</span>
+      <div class="score-bar flex-1"><div class="score-fill ${cls}" style="width:${pct}%"></div></div>
+      <span class="text-xs font-medium w-6 text-right">${score}</span>
+    </div>`;
+  };
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="grid grid-cols-2 gap-2 text-xs mb-5">
+      <div><span class="text-gray-400">전환률</span> <span class="font-semibold ml-1">${v.conversion_rate}%</span></div>
+      <div><span class="text-gray-400">길이</span> <span class="font-semibold ml-1">${Math.floor(v.duration_seconds/60)}분 ${v.duration_seconds%60}초</span></div>
+      <div><span class="text-gray-400">등록일</span> <span class="font-semibold ml-1">${(v.created_at||'').slice(0,10)}</span></div>
+      ${v.tags&&v.tags.length?`<div class="col-span-2"><span class="text-gray-400">태그</span> <span class="font-semibold ml-1">${v.tags.slice(0,5).join(', ')}</span></div>`:''}
+    </div>
+
+    ${a ? `
+      <h4 class="font-semibold text-sm mb-3">분석 점수</h4>
+      <div class="space-y-1.5 mb-5">
+        ${scoreRow('후킹', a.hook_score)}
+        ${scoreRow('스토리텔링', a.story_score)}
+        ${scoreRow('핵심가치', a.value_score)}
+        ${scoreRow('CTA', a.cta_score)}
+        ${scoreRow('감정 곡선', a.emotion_score)}
+        ${scoreRow('주제적합성', a.topic_score)}
+        ${scoreRow('차별화', a.diff_score)}
+        ${scoreRow('종합', a.overall_score)}
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 mb-5 text-xs">
+        <div>
+          <p class="text-green-600 font-medium mb-1">강점</p>
+          ${(a.strengths||[]).map(s=>`<p class="text-gray-600 mb-0.5">• ${esc(s)}</p>`).join('')}
+        </div>
+        <div>
+          <p class="text-red-500 font-medium mb-1">약점</p>
+          ${(a.weaknesses||[]).map(w=>`<p class="text-gray-600 mb-0.5">• ${esc(w)}</p>`).join('')}
+        </div>
+      </div>
+
+      ${a.key_hooks&&a.key_hooks.length ? `
+        <div class="mb-4">
+          <p class="text-xs font-medium text-gray-500 mb-1">핵심 후킹 문구</p>
+          ${a.key_hooks.map(h=>`<p class="text-xs text-gray-700 bg-yellow-50 px-2 py-1 rounded mb-1 border-l-2 border-yellow-300">${esc(h)}</p>`).join('')}
+        </div>` : ''}
+
+      <div class="border-t pt-4">
+        <p class="text-xs font-medium text-gray-500 mb-2">전체 분석</p>
+        <pre class="text-xs text-gray-700 leading-relaxed bg-gray-50 p-3 rounded-lg max-h-64 overflow-y-auto">${esc(a.full_analysis)}</pre>
+      </div>
+    ` : '<p class="text-sm text-gray-400">분석 데이터 없음</p>'}
+  `;
+}
+
+function closeModal() {
+  document.getElementById('video-modal').classList.add('hidden');
+}
+document.getElementById('video-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+/* ─── 설정 ──────────────────────────────────────────────────────────────────── */
+function extractVideoId(input) {
+  const m = input.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : input.trim();
+}
+
+async function updateRate() {
+  const raw = document.getElementById('edit-vid-id').value.trim();
+  const rate = parseFloat(document.getElementById('edit-rate').value);
+  const msg = document.getElementById('edit-msg');
+  if (!raw || isNaN(rate)) { msg.textContent = '입력값을 확인하세요.'; return; }
+  const vid = extractVideoId(raw);
+  const res = await fetch(`/api/videos/${vid}/rate`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversion_rate: rate }),
+  });
+  if (res.ok) { msg.textContent = '✅ 업데이트 완료'; msg.className = 'text-xs mt-2 text-green-600'; }
+  else { const e = await res.json(); msg.textContent = '❌ ' + e.detail; msg.className = 'text-xs mt-2 text-red-500'; }
+}
+
+async function deleteVideo() {
+  const raw = document.getElementById('del-vid-id').value.trim();
+  const msg = document.getElementById('del-msg');
+  if (!raw) { msg.textContent = '영상 ID를 입력하세요.'; return; }
+  if (!confirm(`삭제하시겠습니까?\n${raw}`)) return;
+  const vid = extractVideoId(raw);
+  const res = await fetch(`/api/videos/${vid}`, { method: 'DELETE' });
+  if (res.ok) { msg.textContent = '✅ 삭제 완료'; msg.className = 'text-xs mt-2 text-green-600'; loadDashboard(); }
+  else { const e = await res.json(); msg.textContent = '❌ ' + e.detail; msg.className = 'text-xs mt-2 text-red-500'; }
+}
+
+/* ─── 공통 유틸 ─────────────────────────────────────────────────────────────── */
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+/* ─── 초기화 ────────────────────────────────────────────────────────────────── */
+addUrlInput();        // 첫 입력 행 추가
+loadDashboard();      // 대시보드 데이터 로드
+</script>
+
+</body>
+</html>
